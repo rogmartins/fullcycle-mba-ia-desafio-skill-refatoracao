@@ -138,3 +138,81 @@ print("!!! BANCO DE DADOS RESETADO !!!")
 
 **Motivo da violação:**
 `print()` é usado em todo o código como substituto de um sistema de logging real. Isso viola o SRP porque o controller assume a responsabilidade de decidir como registrar eventos de sistema. Além disso, `print()` não oferece níveis de severidade (DEBUG, INFO, WARNING, ERROR), não pode ser redirecionado para arquivos ou sistemas externos (ex.: Sentry, Datadog) e não é thread-safe em produção. O correto seria usar o módulo `logging` do Python com um logger configurável, separando a responsabilidade de observabilidade dos controllers.
+
+---
+**1.2. Projeto:**  `ecommerce-api-legacy`
+
+**1.2.1. Problema 1**
+
+- **Descrição**: classe AppManager acumula as responsabilidades:
+	- Inicialização e migração do banco de dados (`initDb`)
+	- Definição e registro das rotas HTTP (`setupRoutes`)
+	- Lógica de negócio (checkout, matrícula, pagamento, criação de usuário)
+	- Geração de relatório financeiro
+- **Princípio/Regra violada:** SRP  — Single Responsibility Principle
+- **Localização:** `src/AppManager.js` — classe `AppManager` inteira
+- **Severidade:** `CRITICAL`
+
+ **Motivo da violação:** Ausência de separação de camadas. Todo o código foi escrito em um **único objeto**, o que dificulta as manutenções evolutivas e corretivas, pois para qualquer alteração nesse código há o risco de regressões em funcionalidades não relacionadas e que não apresentavam erros.
+ 
+ ---
+**1.2.2 Problema 2**
+
+- **Descrição:** Rota de deleção sem validação e com mensagem de bug exposta na View.  O handler não verifica se o usuário existe antes de deletar, não trata erros de banco (`err` é ignorado), e retorna uma mensagem que expõe um defeito de integridade referencial ao cliente final. Em MVC, a View (resposta) deve apresentar apenas informação relevante e segura; detalhes de implementação interna — especialmente bugs conhecidos — jamais devem ser expostos na camada de apresentação. A **ausência de validação de entrada** e o **tratamento incorreto de erros** enquadram-se na categoria de problemas de padronização e validação ausente nas rotas.
+- **Regra MVC violada:** O Controller deve validar entrada e a View (resposta HTTP) não deve expor detalhes internos de implementação ou bugs.
+- **Localização:** `src/AppManager.js`, linhas 131–137
+- **Severidade:** `MEDIUM`
+
+```js
+app.delete('/api/users/:id', (req, res) => {
+    let id = req.params.id;
+    this.db.run("DELETE FROM users WHERE id = ?", [id], (err) => {
+        res.send("Usuário deletado, mas as matrículas e pagamentos ficaram sujos no banco.");
+    });
+});
+```
+
+---
+**1.2.3. Problema 3**
+
+- **Descrição:** Falta de **separação de camadas** por causa de vários callbacks aninhados, que dificulta a distinção das responsabilidades do **controller** e do **model**.
+- **Localização:** `src/AppManager.js`, linhas 37–77 e 83–128
+- **Severidade:** `MEDIUM`
+
+**Motivo da violação:** O handler de `/api/checkout` possui 5 níveis de callbacks aninhados (`db.get` → `db.get` → função interna → `db.run` → `db.run` → `db.run`). O handler de `/api/admin/financial-report` possui 4 níveis. Além de dificultar a leitura, esse padrão torna impossível distinguir onde termina a responsabilidade do Controller e onde começaria a do Model. Em MVC, cada camada deve ser identificável e substituível; aqui elas estão fundidas em uma cadeia de closures. O problema é primariamente de legibilidade e manutenção — não há falha de segurança ou quebra funcional direta associada ao aninhamento em si.
+
+---
+**1.2.4. Problema 4**
+
+- **Descrição:** Nomes de variáveis sem significado no handler de checkout
+- **Localização:** `src/AppManager.js`, linhas 29–33
+```js
+let u = req.body.usr;
+let e = req.body.eml;
+let p = req.body.pwd;
+let cid = req.body.c_id;
+let cc = req.body.card;
+```
+- **Severidade:** `LOW`
+
+**Motivo da violação:**  Nomes de variáveis sem semântica clara.
+Todas as variáveis que recebem os campos da requisição usam abreviações de 1–3 letras sem semântica clara (`u` para usuário, `e` para e-mail, `p` para senha, `cid` para course ID, `cc` para número do cartão). Ao longo do handler, `cc` aparece em verificações de pagamento, `e` é passada para queries SQL e `cid` é interpolada em strings de log — em nenhum momento o leitor sabe sem esforço o que cada variável representa. Nomes como `userName`, `email`, `password`, `courseId` e `cardNumber` eliminariam a ambiguidade sem nenhum custo de performance.
+
+---
+**1.2.5. Problema 5**
+
+- **Descrição:** Uso de `const self = this` misturado com arrow functions no mesmo escopo
+- **Localização:** `src/AppManager.js`, linha 26 e linhas 50–57
+```js
+const self = this;   
+
+// ... dentro do mesmo método, arrow functions já capturam `this` corretamente:
+this.db.run("INSERT INTO enrollments ...", [userId, cid], function(err) {  
+    let enrId = this.lastID;
+    self.db.run("INSERT INTO payments ...", ...);                           
+    self.db.run("INSERT INTO audit_logs ...", ...);                         
+});
+```
+- **Severidade:** `LOW`
+
+**Motivo da violação:**  O mesmo método ora usa `this.db`, ora usa `self.db`, sem critério — tornando desnecessariamente difícil saber a qual objeto cada chamada se refere, violando o princípio da menor surpresa.
