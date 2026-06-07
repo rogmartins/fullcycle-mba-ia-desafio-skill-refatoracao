@@ -216,3 +216,26 @@ this.db.run("INSERT INTO enrollments ...", [userId, cid], function(err) {
 - **Severidade:** `LOW`
 
 **Motivo da violação:**  O mesmo método ora usa `this.db`, ora usa `self.db`, sem critério — tornando desnecessariamente difícil saber a qual objeto cada chamada se refere, violando o princípio da menor surpresa.
+
+---
+**1.3. Projeto:**  `task-manager-api`
+
+**1.3.1. Problema 1**
+
+- **Descrição:** Credenciais hardcoded no `NotificationService`
+- **Localização:** `services/notification_service.py`, linhas 8–10
+```python
+self.email_host = 'smtp.gmail.com'
+self.email_port = 587
+self.email_user = 'taskmanager@gmail.com'
+self.email_password = 'senha123'       # ← credencial hardcoded
+```
+- **Princípio violado:**  Single Responsibility Principle 
+- **Severidade:**  CRITICAL
+- **Motivo da violação:**  A classe `NotificationService` acumula duas responsabilidades distintas: (1) gerenciar a configuração de infraestrutura de email (host, porta, credenciais) e (2) executar o envio de notificações. O SRP determina que uma classe deve ter apenas uma responsabilidade. Adicionalmente, o código apresenta credencial e parâmetros de configuração hardcoded.
+
+---
+**1.3.2 Problema 2**
+
+- **Descrição:**  Lógica de cálculo `overdue` duplicada em Controller, Model e Blueprint de relatórios
+
