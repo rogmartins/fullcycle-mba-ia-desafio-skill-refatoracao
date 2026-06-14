@@ -29,7 +29,7 @@ compatibility:
   notes: >
     Requires read access to the full project codebase. For projects with
     automated tests, the test runner command must be accessible via bash
-    (e.g. rspec, pytest, phpunit) for the validation phase.
+    for the validation phase.
 ---
 
 # Refactor Arch
@@ -55,7 +55,7 @@ Before starting the pipeline, verify:
 
 ```bash
 # Example: capture test baseline
-rspec --format documentation > audit/baseline-tests.txt 2>&1
+<test-runner> [options] > audit/baseline-tests.txt 2>&1
 ```
 
 ---
@@ -120,19 +120,7 @@ Group by severity: CRITICAL first, then HIGH, MEDIUM, LOW.
 to the terminal in a standardised format, save it to disk, and ask the user
 whether to proceed to Phase 3.
 
-### 2.1 Resolve the project number
-
-Before generating the report, read `README.md` and extract the project number.
-Use it to build the output path:
-
-```
-reports/audit-{project-number}.md
-```
-
-If `README.md` is missing or contains no project number, prompt the user:
-`Project number not found in README.md. Please provide it:`
-
-### 2.2 Terminal output format
+### 2.1 Terminal output format
 
 Print the full report to the terminal using this exact structure:
 
@@ -176,12 +164,12 @@ Rules for the terminal output:
   indented to align with the first character after the label (see example above).
 - The separator line is exactly 32 `=` characters.
 
-### 2.3 Save the report to disk
+### 2.2 Save the report to disk
 
 After printing, write the same content to:
 
 ```
-reports/audit-{project-number}.md
+reports/audit-1.md
 ```
 
 Create the `reports/` directory if it does not exist:
@@ -193,12 +181,12 @@ mkdir -p reports
 Wrap the terminal block in a fenced code block inside the Markdown file so the
 fixed-width formatting is preserved.
 
-### 2.4 Proceed to Phase 3
+### 2.3 Proceed to Phase 3
 
 Wait for the user's response to `Proceed with refactoring (Phase 3)? [y/n]`:
 
 - **`y`**: confirm with `Starting Phase 3 — MVC Refactoring.` and continue.
-- **`n`**: confirm with `Audit saved to reports/audit-{project-number}.md. Refactoring cancelled.` and stop.
+- **`n`**: confirm with `Audit saved to reports/audit-1.md. Refactoring cancelled.` and stop.
 - Any other input: repeat the prompt once, then stop if still invalid.
 
 ---
@@ -234,7 +222,8 @@ Always follow this sequence to minimise regression risk:
   step without intermediate validation.
 - Preserve the public interface of components (routes, API contracts) to avoid
   breaking existing integrations.
-- Add `# REFACTORED: [reason]` comments on changed lines for traceability.
+- Add a `REFACTORED: [reason]` inline comment (using the language's comment
+  syntax) on changed lines for traceability.
 - If an original file is fully replaced, keep it as `file.original.ext` until
   Phase 4 confirms everything works.
 
@@ -263,7 +252,7 @@ If tests are configured, run the runner and compare with the baseline:
 
 ```bash
 # Run and save result
-rspec --format documentation > audit/post-refactor-tests.txt 2>&1
+<test-runner> [options] > audit/post-refactor-tests.txt 2>&1
 
 # Compare with baseline
 diff audit/baseline-tests.txt audit/post-refactor-tests.txt
@@ -276,7 +265,7 @@ regression — it must be fixed before closing.
 
 If no tests exist, perform a structural check:
 
-- [ ] The application starts without errors (`ruby app.rb`, `python app.py`, etc.)
+- [ ] The application starts without errors (use the project's standard startup command)
 - [ ] Main routes respond with the expected HTTP status
 - [ ] No `import`, `require`, or `use` references files that were moved without
   path updates
