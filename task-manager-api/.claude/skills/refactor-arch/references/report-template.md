@@ -58,7 +58,7 @@ Phase 2 complete. Proceed with refactoring (Phase 3)? [y/n]
 After printing to the terminal, write the same content to:
 
 ```
-../reports/audit-project-1.md
+../reports/audit-project-3.md
 ```
 
 Wrap the terminal block inside a fenced Markdown code block so fixed-width formatting is preserved:
@@ -98,5 +98,5 @@ After saving, wait for user input:
 | Input | Action |
 |-------|--------|
 | `y`   | Print `Starting Phase 3 — MVC Refactoring.` and continue |
-| `n`   | Print `Audit saved to ../reports/audit-project-1.md. Refactoring cancelled.` and stop |
+| `n`   | Print `Audit saved to ../reports/audit-project-3.md. Refactoring cancelled.` and stop |
 | other | Repeat prompt once, then stop |
