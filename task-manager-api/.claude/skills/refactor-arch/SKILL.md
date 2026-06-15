@@ -112,6 +112,11 @@ Impact: why it is problematic in this context
 
 Group by severity: CRITICAL first, then HIGH, MEDIUM, LOW.
 
+**SQL Injection reporting rule**: for every SQL Injection finding, identify the query
+operation type (SELECT, INSERT, UPDATE, DELETE, or dynamic WHERE builder) and state
+only the risks enabled by that specific operation — do not generalise. If a technical
+security term is used, always define it in plain language in the same sentence.
+
 ---
 
 ## Phase 2 — Audit Report

@@ -11,7 +11,21 @@ Used in Phase 1 to classify every finding before recording it.
 
 **Apply when**:
 - Credentials, passwords, API keys, or connection strings are hardcoded in source files
-- SQL queries are built via string concatenation (SQL Injection vector)
+- SQL queries are built via string concatenation (SQL Injection vector). When reporting
+  this finding, identify the query operation type and state only the risks that apply:
+  - **SELECT**: an attacker can read data they are not authorised to see. If the query
+    allows appending extra clauses (e.g. by injecting a UNION), data from other tables
+    can also be read — including sensitive data such as passwords and tokens. This is
+    the unauthorised extraction of data from the system to an external party.
+  - **INSERT / UPDATE / DELETE**: an attacker can insert, modify, or delete records
+    without authorisation.
+  - **Dynamic WHERE builder** (conditions assembled at runtime from user input): combines
+    read and/or write risks depending on which parameters are injectable and what the
+    base operation is.
+  - **Authentication query** (WHERE filtering on credential fields): an attacker can
+    bypass the login check without providing a valid password.
+  Never list a risk that the operation type cannot enable. Always describe risks in plain
+  language; if a technical term is used, define it in plain language in the same sentence.
 - A single file concentrates database access, business logic, routing, and presentation (full God Class)
 
 **Examples**:
