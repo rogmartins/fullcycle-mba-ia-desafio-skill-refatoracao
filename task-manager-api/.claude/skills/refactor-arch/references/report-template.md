@@ -50,6 +50,7 @@ Phase 2 complete. Proceed with refactoring (Phase 3)? [y/n]
 3. **Within group**: order findings alphabetically by file path.
 4. **Label alignment**: `Description`, `Impact`, and `Recommendation` values that span multiple lines must be indented to align with the first character after the label colon.
 5. **Blank lines**: one blank line between consecutive findings. No blank line between label and value within a finding.
+6. **Language**: write the *content* of `Description`, `Impact`, and `Recommendation` fields in **Brazilian Portuguese**. All labels (`Description:`, `Impact:`, `Recommendation:`), headers, severity tags, file paths, and any other fields must remain in English.
 
 ---
 

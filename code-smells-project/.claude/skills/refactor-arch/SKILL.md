@@ -163,6 +163,9 @@ Rules for the terminal output:
 - Multi-line `Description`, `Impact`, and `Recommendation` values must be
   indented to align with the first character after the label (see example above).
 - The separator line is exactly 32 `=` characters.
+- **Language**: write the *content* of `Description`, `Impact`, and
+  `Recommendation` fields in **Brazilian Portuguese**. All labels, headers,
+  severity tags, file paths, and any other fields must remain in English.
 
 ### 2.2 Save the report to disk
 
