@@ -3,63 +3,36 @@ from database import db
 from models.task import Task
 from models.user import User
 from models.category import Category
+from sqlalchemy.orm import joinedload
 from datetime import datetime
-import json, os, sys, time
+# REFACTORED: constantes importadas de helpers — eliminam números mágicos
+from utils.helpers import (
+    MIN_TITLE_LENGTH, MAX_TITLE_LENGTH, DEFAULT_PRIORITY, VALID_STATUSES
+)
 
 task_bp = Blueprint('tasks', __name__)
 
 @task_bp.route('/tasks', methods=['GET'])
 def get_tasks():
     try:
-        tasks = Task.query.all()
+        # REFACTORED: joinedload elimina N+1 (User e Category carregados em uma query)
+        tasks = Task.query.options(
+            joinedload(Task.user),
+            joinedload(Task.category)
+        ).all()
+
         result = []
         for t in tasks:
-            task_data = {}
-            task_data['id'] = t.id
-            task_data['title'] = t.title
-            task_data['description'] = t.description
-            task_data['status'] = t.status
-            task_data['priority'] = t.priority
-            task_data['user_id'] = t.user_id
-            task_data['category_id'] = t.category_id
-            task_data['created_at'] = str(t.created_at)
-            task_data['updated_at'] = str(t.updated_at)
-            task_data['due_date'] = str(t.due_date) if t.due_date else None
-            task_data['tags'] = t.tags.split(',') if t.tags else []
-
-            if t.due_date:
-                if t.due_date < datetime.utcnow():
-                    if t.status != 'done' and t.status != 'cancelled':
-                        task_data['overdue'] = True
-                    else:
-                        task_data['overdue'] = False
-                else:
-                    task_data['overdue'] = False
-            else:
-                task_data['overdue'] = False
-
-            if t.user_id:
-                user = User.query.get(t.user_id)
-                if user:
-                    task_data['user_name'] = user.name
-                else:
-                    task_data['user_name'] = None
-            else:
-                task_data['user_name'] = None
-
-            if t.category_id:
-                cat = Category.query.get(t.category_id)
-                if cat:
-                    task_data['category_name'] = cat.name
-                else:
-                    task_data['category_name'] = None
-            else:
-                task_data['category_name'] = None
-
+            task_data = t.to_dict()
+            # REFACTORED: Task.is_overdue() substitui lógica de overdue duplicada
+            task_data['overdue'] = t.is_overdue()
+            task_data['user_name'] = t.user.name if t.user else None
+            task_data['category_name'] = t.category.name if t.category else None
             result.append(task_data)
 
         return jsonify(result), 200
-    except:
+    except Exception as e:
+        print(f"Erro em get_tasks: {str(e)}")
         return jsonify({'error': 'Erro interno'}), 500
 
 @task_bp.route('/tasks/<int:task_id>', methods=['GET'])
@@ -67,17 +40,8 @@ def get_task(task_id):
     task = Task.query.get(task_id)
     if task:
         data = task.to_dict()
-
-        if task.due_date:
-            if task.due_date < datetime.utcnow():
-                if task.status != 'done' and task.status != 'cancelled':
-                    data['overdue'] = True
-                else:
-                    data['overdue'] = False
-            else:
-                data['overdue'] = False
-        else:
-            data['overdue'] = False
+        # REFACTORED: Task.is_overdue() substitui lógica de overdue duplicada
+        data['overdue'] = task.is_overdue()
         return jsonify(data), 200
     else:
         return jsonify({'error': 'Task não encontrada'}), 404
@@ -93,21 +57,23 @@ def create_task():
     if not title:
         return jsonify({'error': 'Título é obrigatório'}), 400
 
-    if len(title) < 3:
+    # REFACTORED: MIN/MAX_TITLE_LENGTH de helpers substituem números mágicos
+    if len(title) < MIN_TITLE_LENGTH:
         return jsonify({'error': 'Título muito curto'}), 400
 
-    if len(title) > 200:
+    if len(title) > MAX_TITLE_LENGTH:
         return jsonify({'error': 'Título muito longo'}), 400
 
     description = data.get('description', '')
     status = data.get('status', 'pending')
-    priority = data.get('priority', 3)
+    priority = data.get('priority', DEFAULT_PRIORITY)
     user_id = data.get('user_id')
     category_id = data.get('category_id')
     due_date = data.get('due_date')
     tags = data.get('tags')
 
-    if status not in ['pending', 'in_progress', 'done', 'cancelled']:
+    # REFACTORED: VALID_STATUSES de helpers substitui lista inline
+    if status not in VALID_STATUSES:
         return jsonify({'error': 'Status inválido'}), 400
 
     if priority < 1 or priority > 5:
@@ -138,7 +104,8 @@ def create_task():
             return jsonify({'error': 'Formato de data inválido. Use YYYY-MM-DD'}), 400
 
     if tags:
-        if type(tags) == list:
+        # REFACTORED: isinstance() substitui type() == para suporte a subclasses
+        if isinstance(tags, list):
             task.tags = ','.join(tags)
         else:
             task.tags = tags
@@ -164,9 +131,9 @@ def update_task(task_id):
         return jsonify({'error': 'Dados inválidos'}), 400
 
     if 'title' in data:
-        if len(data['title']) < 3:
+        if len(data['title']) < MIN_TITLE_LENGTH:
             return jsonify({'error': 'Título muito curto'}), 400
-        if len(data['title']) > 200:
+        if len(data['title']) > MAX_TITLE_LENGTH:
             return jsonify({'error': 'Título muito longo'}), 400
         task.title = data['title']
 
@@ -174,7 +141,7 @@ def update_task(task_id):
         task.description = data['description']
 
     if 'status' in data:
-        if data['status'] not in ['pending', 'in_progress', 'done', 'cancelled']:
+        if data['status'] not in VALID_STATUSES:
             return jsonify({'error': 'Status inválido'}), 400
         task.status = data['status']
 
@@ -207,7 +174,8 @@ def update_task(task_id):
             task.due_date = None
 
     if 'tags' in data:
-        if type(data['tags']) == list:
+        # REFACTORED: isinstance() substitui type() == para suporte a subclasses
+        if isinstance(data['tags'], list):
             task.tags = ','.join(data['tags'])
         else:
             task.tags = data['tags']
@@ -264,11 +232,7 @@ def search_tasks():
         tasks = tasks.filter(Task.user_id == int(user_id))
 
     results = tasks.all()
-    output = []
-    for t in results:
-        output.append(t.to_dict())
-
-    return jsonify(output), 200
+    return jsonify([t.to_dict() for t in results]), 200
 
 @task_bp.route('/tasks/stats', methods=['GET'])
 def task_stats():
@@ -279,12 +243,8 @@ def task_stats():
     cancelled = Task.query.filter_by(status='cancelled').count()
 
     all_tasks = Task.query.all()
-    overdue_count = 0
-    for t in all_tasks:
-        if t.due_date:
-            if t.due_date < datetime.utcnow():
-                if t.status != 'done' and t.status != 'cancelled':
-                    overdue_count = overdue_count + 1
+    # REFACTORED: Task.is_overdue() substitui lógica de overdue duplicada
+    overdue_count = sum(1 for t in all_tasks if t.is_overdue())
 
     stats = {
         'total': total,

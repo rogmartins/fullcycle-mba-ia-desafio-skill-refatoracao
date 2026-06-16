@@ -1,0 +1,13 @@
+200  GET /health
+200  GET /users
+409  POST /users (valid)
+400  POST /users (bad email)
+200  POST /login (valid)
+401  POST /login (wrong pw)
+201  POST /tasks (valid)
+400  POST /tasks (short title)
+200  GET /tasks
+200  GET /tasks/stats
+200  GET /reports/summary
+201  POST /categories
+200  GET /categories

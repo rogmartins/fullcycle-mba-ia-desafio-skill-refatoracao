@@ -4,13 +4,15 @@ from database import db
 from routes.task_routes import task_bp
 from routes.user_routes import user_bp
 from routes.report_routes import report_bp
-import os, sys, json, datetime
+import config
+import datetime
 
 app = Flask(__name__)
 
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///tasks.db'
+# REFACTORED: credenciais carregadas de variáveis de ambiente via config.py
+app.config['SQLALCHEMY_DATABASE_URI'] = config.DATABASE_URI
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.config['SECRET_KEY'] = 'super-secret-key-123'
+app.config['SECRET_KEY'] = config.SECRET_KEY
 
 CORS(app)
 db.init_app(app)
