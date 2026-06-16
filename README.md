@@ -1,8 +1,8 @@
-## 1. Análise Manual 
+## A. Análise Manual 
 
 **1.1** **Projeto:**  `code-smells-project`
 
-**1.1.1. Problema 1**
+**1.1. Problema 1**
 
 - **Descrição:**  Acesso direto ao banco de dados no Controller, sem uso do  Model)
 - **Localização:** `controllers.py::health_check()`, linhas 264–292
@@ -22,7 +22,7 @@ def health_check():
 - **Severidade:** `HIGH`
 
 ---
-**1.1.2. Problema 2** 
+**1.2. Problema 2** 
 
 - **Descrição:** `models.py::relatorio_vendas()` exige modificação para cada novo nível de desconto
 - **Localização:** `models.py`, linhas 256–261
@@ -42,7 +42,7 @@ elif faturamento > 1000:
 - **Severidade:** `MEDIUM`
 
 ---
-**1.1.3. Problema 3**
+**1.3. Problema 3**
 
 - **Descrição:**  Problema de **N+1 queries** em `get_pedidos_usuario()` e `get_todos_pedidos()`
 - **Localização:** `models.py` linhas 171–201,  e  linhas 203–233
@@ -61,7 +61,7 @@ def get_pedidos_usuario(usuario_id):
 - **Severidade:** `MEDIUM`
 
 ---
-**1.1.4. Problema 4**
+**1.4. Problema 4**
 
 - **Descrição:** Magic strings para status de pedido espalhadas pelo código
 - **Localização:** `controllers.py` linhas 242, 247–250 — `models.py` linhas 148, 247, 251, 254
@@ -86,7 +86,7 @@ cursor.execute("SELECT COUNT(*) FROM pedidos WHERE status = 'cancelado'")
 - **Severidade:** `LOW`
 
 ---
-**1.1.5. Problema 5**
+**1.5. Problema 5**
 
 - **Descrição:**  `print()` usado como sistema de logging
 - **Localização:** `controllers.py` linhas 8, 57, 106, 161, 179, 209–210, 219 — `database.py` linha 56
@@ -106,9 +106,9 @@ print("!!! BANCO DE DADOS RESETADO !!!")
 - **Severidade:** `LOW`
 
 ---
-**1.2. Projeto:**  `ecommerce-api-legacy`
+**2. Projeto:**  `ecommerce-api-legacy`
 
-**1.2.1. Problema 1**
+**2.1. Problema 1**
 
 - **Descrição**: classe AppManager acumula as responsabilidades:
 	- Inicialização e migração do banco de dados (`initDb`)
@@ -120,7 +120,7 @@ print("!!! BANCO DE DADOS RESETADO !!!")
 - **Motivo da violação:** Ausência de separação de camadas. Todo o código foi escrito em um **único objeto**, o que dificulta as manutenções evolutivas e corretivas, pois para qualquer alteração nesse código há o risco de regressões em funcionalidades não relacionadas e que não apresentavam erros.
  - **Severidade:** `CRITICAL`
  ---
-**1.2.2 Problema 2**
+**2.2 Problema 2**
 
 - **Descrição:**  O Controller deve validar entrada e a View (resposta HTTP) não deve expor detalhes internos de implementação ou bugs.
 - **Localização:** `src/AppManager.js`, linhas 131–137
@@ -138,7 +138,7 @@ app.delete('/api/users/:id', (req, res) => {
 - **Severidade:** `MEDIUM`
 
 ---
-**1.2.3. Problema 3**
+**2.3. Problema 3**
 
 - **Descrição:** Falta de **separação de camadas** por causa de vários callbacks aninhados, que dificulta a distinção das responsabilidades do **controller** e do **model**.
 - **Localização:** `src/AppManager.js`, linhas 37–77 e 83–128
@@ -192,7 +192,7 @@ app.delete('/api/users/:id', (req, res) => {
 - **Severidade:** `MEDIUM`
 
 ---
-**1.2.4. Problema 4**
+**2.4. Problema 4**
 
 - **Descrição:** Nomes de variáveis sem significado no handler de checkout
 - **Localização:** `src/AppManager.js`, linhas 29–33
@@ -209,7 +209,7 @@ let cc = req.body.card;
 - **Severidade:** `LOW`
 
 ---
-**1.2.5. Problema 5**
+**2.5. Problema 5**
 
 - **Descrição:** Uso de `const self = this` misturado com arrow functions no mesmo escopo
 - **Localização:** `src/AppManager.js`, linha 26 e linhas 50–57
@@ -229,9 +229,9 @@ this.db.run("INSERT INTO enrollments ...", [userId, cid], function(err) {
 - **Severidade:** `LOW`
 
 ---
-**1.3. Projeto:**  `task-manager-api`
+**3. Projeto:**  `task-manager-api`
 
-**1.3.1. Problema 1**
+**3.1. Problema 1**
 
 - **Descrição:** Credenciais hardcoded no `NotificationService`
 - **Localização:** `services/notification_service.py`, linhas 8–10
@@ -247,7 +247,7 @@ self.email_password = 'senha123'       # ← credencial hardcoded
 - **Severidade:**  CRITICAL
 
 ---
-**1.3.2 Problema 2**
+**3.2 Problema 2**
 
 - **Descrição:**  Lógica de cálculo `overdue` duplicada em Controller, Model e Blueprint de relatórios
 - **Localizações:**
@@ -270,7 +270,7 @@ if t.due_date:
 - **Severidade:**  MEDIUM
 
 ---
-**1.3.3. Problema 3**
+**3.3. Problema 3**
 
 - **Descrição:**  Serialização duplicada e inconsistente entre Model e Controllers (View)
 - **Localizações:**
@@ -294,7 +294,7 @@ if t.due_date:
 - **Severidade:**  MEDIUM
 
 ---
-**1.3.4 Problema 4**
+**3.4 Problema 4**
 
 - **Descrição:** Constantes de domínio definidas mas nunca utilizadas (OCP / DRY)
 - **Localização:** `utils/helpers.py`, linhas 110–116
@@ -313,7 +313,7 @@ DEFAULT_COLOR = '#000000'
 - **Severidade:**  LOW
 
 ---
-**1.3.5 Problema 5**
+**3.5 Problema 5**
 
 - **Descrição:** Nomes de variáveis sem significado e cláusulas `except` que não mostram o que houve, no Controller
 - **Localizações:**
@@ -339,3 +339,89 @@ except:
 - **Princípio violado:**  Nomes sem semântica + captura silenciosa de exceções
 - **Motivo da violação:**  No MVC, os Controllers são a camada de orquestração mais lida pela equipe de desenvolvimento. Nomes como `p1`–`p5` não comunicam a semântica de domínio (`critical`, `high`, `medium`, `low`, `minimal`), forçando o leitor a cruzar o código com o dicionário de resposta JSON para entender o que cada variável representa. O padrão `except` sem especificar o tipo de exceção silencia erros inesperados — incluindo `KeyboardInterrupt`, `SystemExit` e erros de programação — tornando debugging extremamente difícil em produção. Erros de lógica passam despercebidos pois são tratados da mesma forma que erros de banco de dados esperados. Isso compromete a legibilidade e a rastreabilidade do Controller, afetando diretamente a manutenibilidade da camada de orquestração MVC.
 - **Severidade:**  LOW
+
+---
+## B. Construção da Skill
+
+### Decisões de Design: quais anti-patterns foram incluídos e por quê
+
+Os anti-patterns foram organizados em **quatro níveis de severidade**.
+A escolha de cada um reflete um critério diferente de impacto.
+
+### 1. CRITICAL — risco imediato de segurança ou colapso estrutural
+
+| Anti-pattern                                                             | Justificativa da inclusão                                                  |
+| ------------------------------------------------------------------------ | -------------------------------------------------------------------------- |
+| Credenciais hardcoded (senhas, API keys, connection strings)             | Exposição imediata de dados sensíveis; presente em qualquer stack          |
+| SQL construído via concatenação de strings                               | Vetor direto de SQL Injection; independe de linguagem ou ORM               |
+| God Class (um único arquivo com DB + lógica + roteamento + apresentação) | Invalida a análise de todas as outras camadas; deve ser resolvido primeiro |
+### 2. HIGH — violação arquitetural que degrada manutenibilidade e testabilidade
+
+| Anti-pattern                                  | Justificativa da inclusão                                                     |
+| --------------------------------------------- | ----------------------------------------------------------------------------- |
+| Lógica de negócio em controllers ou views     | É a violação central do MVC; torna o código impossível de testar isoladamente |
+| Ausência de camada Model (queries espalhadas) | Sem Model, o MVC simplesmente não existe; há apenas scripts procedurais       |
+| Acoplamento rígido sem injeção de dependência | Impede substituição de implementações e testes unitários                      |
+| Estado global mutável compartilhado           | Cria side effects imprevisíveis; problema grave em ambientes concorrentes     |
+
+### 3. MEDIUM — problemas de qualidade sem quebra arquitetural imediata
+
+| Anti-pattern | Justificativa da inclusão |
+|---|---|
+| N+1 queries | Degradação de performance visível em produção; padrão fácil de identificar em loops |
+| Duplicação de lógica entre controllers/arquivos | Viola DRY; multiplica o esforço de manutenção |
+| Falta de validação de input nas rotas | Risco de integridade de dados; fronteira entre segurança e qualidade |
+| Middlewares com lógica de domínio | Responsabilidade no layer errado; dificulta reutilização |
+
+### 4. LOW — problemas de legibilidade sem impacto em comportamento
+
+| Anti-pattern | Justificativa da inclusão |
+|---|---|
+| Magic numbers ou strings sem constantes nomeadas | Dificulta compreensão e manutenção futura |
+| Nomes sem significado (variáveis, funções, classes) | Aumenta o custo cognitivo de leitura |
+| Comentários desatualizados ou código morto comentado | Ruído que confunde mais do que ajuda |
+
+## Desafios encontrados
+
+A **primeira versão** foi desenvolvida enquanto o projeto de referência era Python/Flask ( `code-smells-project`) e isso contaminou a skill com referências específicas de tecnologia, quebrando a neutralidade e gerando um acoplamento oculto.
+A solução foi utilizar **três mecanismos combinados** para garantir que a skill seja **agnóstica**:
+
+### 1. Detecção dinâmica da tecnologia nas Preconditions
+
+`SKILL.md:47–52` instrui o modelo a **descobrir** a linguagem e o framework no momento da execução, não a assumir nenhum de antemão:
+
+```
+1. Map the project: use `view` on the root directory to understand the folder structure
+   and identify the main language and framework.
+2. Identify the entry point: locate the main application file
+   (e.g. app.py, index.php, application.rb, main.go).
+```
+
+### 2. Checklist de detecção baseado em conceitos, não em sintaxe
+
+`SKILL.md:80–113` — a Phase 1 descreve problemas em termos de **padrões arquiteturais universais**:
+
+- "SQL queries built via string concatenation" → vale para Python, PHP, Ruby, Go, Java
+- "God Class" → conceito de OOP, não de uma linguagem
+- "Business logic inside controllers or views" → se aplica a qualquer stack MVC
+
+### 3. Referência multi-framework carregada sob demanda
+
+`references/mvc-patterns.md` é o ponto central da agnosticidade. Ele:
+
+- Cobre **Ruby/Sinatra, Rails, Python/Flask, Django, PHP/Laravel, Go/net·http, Node/Express**
+- É carregado **só na Phase 3** (`SKILL.md:199`), depois que a tecnologia já foi identificada
+- Fecha com uma seção `## Universal Rules (all frameworks)` (`mvc-patterns.md:329–335`) que define as regras MVC sem citar nenhum framework
+
+A skill carrega o documento completo e o modelo usa apenas a seção relevante para o projeto detectado — sem necessidade de lógica condicional no próprio `SKILL.md`.
+
+## Resumo do mecanismo
+
+| Camada                         | Como garante agnosticidade                               |
+| ------------------------------ | -------------------------------------------------------- |
+| `SKILL.md` — Preconditions     | detecta tecnologia em runtime via `view`                 |
+| `SKILL.md` — Phase 1 checklist | padrões baseados em conceitos (God Class, N+1, coupling) |
+| `references/severity-scale.md` | exemplos em múltiplas linguagens, sem preferência        |
+| `references/mvc-patterns.md`   | seções por framework + regras universais ao final        |
+
+A skill **não codifica** suposições sobre tecnologia — ela instrui o modelo a *descobrir* e *adaptar*. O arquivo `mvc-patterns.md` funciona como um "dicionário de traduções": o mesmo conceito MVC expresso na linguagem nativa de cada stack.
