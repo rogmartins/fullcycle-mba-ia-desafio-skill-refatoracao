@@ -2,13 +2,8 @@ from flask import Blueprint, request, jsonify
 from database import db
 from models.user import User
 from models.task import Task
-from datetime import datetime, timedelta, timezone
-# REFACTORED: validate_email importado de helpers — elimina regex duplicada
-from utils.helpers import validate_email
-# REFACTORED: constantes importadas de helpers — elimina números mágicos
-from utils.helpers import VALID_ROLES, MIN_PASSWORD_LENGTH
-import jwt
-import config
+from datetime import datetime
+import hashlib, json, re
 
 user_bp = Blueprint('users', __name__)
 
@@ -38,7 +33,9 @@ def get_user(user_id):
     data = user.to_dict()
 
     tasks = Task.query.filter_by(user_id=user_id).all()
-    data['tasks'] = [t.to_dict() for t in tasks]
+    data['tasks'] = []
+    for t in tasks:
+        data['tasks'].append(t.to_dict())
 
     return jsonify(data), 200
 
@@ -61,19 +58,17 @@ def create_user():
     if not password:
         return jsonify({'error': 'Senha é obrigatória'}), 400
 
-    # REFACTORED: validate_email() de helpers substitui regex duplicada
-    if not validate_email(email):
+    if not re.match(r'^[a-zA-Z0-9+_.-]+@[a-zA-Z0-9.-]+$', email):
         return jsonify({'error': 'Email inválido'}), 400
 
-    # REFACTORED: MIN_PASSWORD_LENGTH de helpers substitui número mágico
-    if len(password) < MIN_PASSWORD_LENGTH:
-        return jsonify({'error': f'Senha deve ter no mínimo {MIN_PASSWORD_LENGTH} caracteres'}), 400
+    if len(password) < 4:
+        return jsonify({'error': 'Senha deve ter no mínimo 4 caracteres'}), 400
 
     existing = User.query.filter_by(email=email).first()
     if existing:
         return jsonify({'error': 'Email já cadastrado'}), 409
 
-    if role not in VALID_ROLES:
+    if role not in ['user', 'admin', 'manager']:
         return jsonify({'error': 'Role inválido'}), 400
 
     user = User()
@@ -86,7 +81,9 @@ def create_user():
         db.session.add(user)
         db.session.commit()
         print(f"Usuário criado: {user.id} - {user.name}")
-        return jsonify(user.to_dict()), 201
+
+        response_data = user.to_dict()
+        return jsonify(response_data), 201
     except Exception as e:
         db.session.rollback()
         print(f"ERRO: {str(e)}")
@@ -106,8 +103,7 @@ def update_user(user_id):
         user.name = data['name']
 
     if 'email' in data:
-        # REFACTORED: validate_email() de helpers substitui regex duplicada
-        if not validate_email(data['email']):
+        if not re.match(r'^[a-zA-Z0-9+_.-]+@[a-zA-Z0-9.-]+$', data['email']):
             return jsonify({'error': 'Email inválido'}), 400
 
         existing = User.query.filter_by(email=data['email']).first()
@@ -116,12 +112,12 @@ def update_user(user_id):
         user.email = data['email']
 
     if 'password' in data:
-        if len(data['password']) < MIN_PASSWORD_LENGTH:
+        if len(data['password']) < 4:
             return jsonify({'error': 'Senha muito curta'}), 400
         user.set_password(data['password'])
 
     if 'role' in data:
-        if data['role'] not in VALID_ROLES:
+        if data['role'] not in ['user', 'admin', 'manager']:
             return jsonify({'error': 'Role inválido'}), 400
         user.role = data['role']
 
@@ -163,17 +159,25 @@ def get_user_tasks(user_id):
     tasks = Task.query.filter_by(user_id=user_id).all()
     result = []
     for t in tasks:
-        task_data = {
-            'id': t.id,
-            'title': t.title,
-            'description': t.description,
-            'status': t.status,
-            'priority': t.priority,
-            'created_at': str(t.created_at),
-            'due_date': str(t.due_date) if t.due_date else None,
-            # REFACTORED: Task.is_overdue() substitui lógica de overdue duplicada
-            'overdue': t.is_overdue()
-        }
+        task_data = {}
+        task_data['id'] = t.id
+        task_data['title'] = t.title
+        task_data['description'] = t.description
+        task_data['status'] = t.status
+        task_data['priority'] = t.priority
+        task_data['created_at'] = str(t.created_at)
+        task_data['due_date'] = str(t.due_date) if t.due_date else None
+
+        if t.due_date:
+            if t.due_date < datetime.utcnow():
+                if t.status != 'done' and t.status != 'cancelled':
+                    task_data['overdue'] = True
+                else:
+                    task_data['overdue'] = False
+            else:
+                task_data['overdue'] = False
+        else:
+            task_data['overdue'] = False
         result.append(task_data)
 
     return jsonify(result), 200
@@ -200,17 +204,8 @@ def login():
     if not user.active:
         return jsonify({'error': 'Usuário inativo'}), 403
 
-    # REFACTORED: JWT real assinado com SECRET_KEY substitui token falso
-    payload = {
-        'sub': user.id,
-        'email': user.email,
-        'role': user.role,
-        'exp': datetime.now(timezone.utc) + timedelta(hours=config.JWT_EXPIRATION_HOURS)
-    }
-    token = jwt.encode(payload, config.SECRET_KEY, algorithm='HS256')
-
     return jsonify({
         'message': 'Login realizado com sucesso',
         'user': user.to_dict(),
-        'token': token
+        'token': 'fake-jwt-token-' + str(user.id)
     }), 200
