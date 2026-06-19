@@ -1,6 +1,6 @@
 from database import db
 from datetime import datetime
-import json
+from constants import VALID_STATUSES, TERMINAL_STATUSES, MIN_PRIORITY, MAX_PRIORITY
 
 class Task(db.Model):
     __tablename__ = 'tasks'
@@ -36,25 +36,14 @@ class Task(db.Model):
         return data
 
     def validate_status(self, new_status):
-        valid = ['pending', 'in_progress', 'done', 'cancelled']
-        if new_status in valid:
-            return True
-        else:
-            return False
+        # REFACTORED: [LOW] Retorno booleano direto + constante compartilhada.
+        return new_status in VALID_STATUSES
 
     def validate_priority(self, p):
-        if p >= 1 and p <= 5:
-            return True
-        return False
+        return MIN_PRIORITY <= p <= MAX_PRIORITY
 
     def is_overdue(self):
-        if self.due_date:
-            if self.due_date < datetime.utcnow():
-                if self.status != 'done' and self.status != 'cancelled':
-                    return True
-                else:
-                    return False
-            else:
-                return False
-        else:
+        # REFACTORED: [HIGH] Regra única de atraso (antes duplicada nas rotas).
+        if not self.due_date:
             return False
+        return self.due_date < datetime.utcnow() and self.status not in TERMINAL_STATUSES
