@@ -232,8 +232,6 @@ Always follow this sequence to minimise regression risk:
   breaking existing integrations.
 - Add a `REFACTORED: [reason]` inline comment (using the language's comment
   syntax) on changed lines for traceability.
-- If an original file is fully replaced, keep it as `file.original.ext` until
-  Phase 4 confirms everything works.
 
 ### 3.3 Change log
 
@@ -284,7 +282,6 @@ If no tests exist, perform a structural check:
 - [ ] All CRITICAL and HIGH findings have been resolved
 - [ ] `audit/refactoring-log.md` is complete
 - [ ] `audit/architecture-report.md` updated with final status
-- [ ] `.original.ext` files removed (or kept with justification)
 - [ ] Post-refactoring test results documented
 
 ---
