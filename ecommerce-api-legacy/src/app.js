@@ -1,14 +1,23 @@
+// REFACTORED: [CRITICAL] app.js enxuto — sem God Class; apenas monta a aplicação.
 const express = require('express');
-const AppManager = require('./AppManager');
-const { config } = require('./utils');
+const { config } = require('./config');
+const db = require('./models/db');
+const routes = require('./routes');
+const logger = require('./utils/logger');
 
-const app = express();
-app.use(express.json());
+async function start() {
+    await db.init();
 
-const manager = new AppManager();
-manager.initDb();
-manager.setupRoutes(app);
+    const app = express();
+    app.use(express.json());
+    app.use(routes);
 
-app.listen(config.port, () => {
-    console.log(`Frankenstein LMS rodando na porta ${config.port}...`);
+    app.listen(config.port, () => {
+        logger.info(`LMS rodando na porta ${config.port}...`);
+    });
+}
+
+start().catch((err) => {
+    logger.error('Falha ao iniciar a aplicação:', err);
+    process.exit(1);
 });

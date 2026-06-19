@@ -1,187 +1,143 @@
+# Audit Report — task-manager-api
+
 ```
 ================================
 ARCHITECTURE AUDIT REPORT
 ================================
 Project: task-manager-api
-Stack:   Python + Flask
-Files:   10 analyzed | ~1060 lines of code
+Stack:   Python + Flask (SQLAlchemy)
+Files:   11 analyzed | ~1158 lines of code
 
 Summary
-CRITICAL: 3 | HIGH: 4 | MEDIUM: 4 | LOW: 3
+CRITICAL: 4 | HIGH: 4 | MEDIUM: 5 | LOW: 4
 
 Findings
 
-[CRITICAL] Hardcoded Secret Key
+[CRITICAL] Hardcoded SECRET_KEY
 File: app.py:13
-Description: A chave secreta da aplicação Flask está definida diretamente no
-             código-fonte como string literal ('super-secret-key-123').
-Impact:      Qualquer pessoa com acesso ao repositório conhece a chave usada
-             para assinar cookies e tokens. Um atacante pode forjar sessões
-             e tokens válidos sem precisar de credenciais.
-Recommendation: Mover para variável de ambiente (SECRET_KEY) carregada com
-                python-dotenv. Nunca commitar valores reais em arquivos de código.
+Description: SECRET_KEY definida diretamente no código ('super-secret-key-123').
+Impact:      Segredo versionado permite forjar tokens/sessões assinados pela
+             aplicação.
+Recommendation: Ler SECRET_KEY de variável de ambiente.
 
-[CRITICAL] Hardcoded Email Password
-File: services/notification_service.py:10
-Description: A senha de e-mail SMTP está escrita diretamente no código
-             como 'senha123'.
-Impact:      A senha fica exposta a qualquer pessoa com acesso ao repositório,
-             permitindo uso não autorizado da conta de e-mail para envio de
-             mensagens, spam ou acesso à caixa de entrada.
-Recommendation: Mover para variável de ambiente (EMAIL_PASSWORD). Usar
-                autenticação OAuth2 para SMTP em produção.
+[CRITICAL] Credenciais SMTP hardcoded
+File: services/notification_service.py:9
+Description: Usuário e senha do servidor de email estão escritos no código
+             (email_user/email_password='senha123').
+Impact:      Credenciais de envio de email expostas no repositório, permitindo
+             uso indevido da conta de email.
+Recommendation: Ler host/porta/usuário/senha de variáveis de ambiente.
 
-[CRITICAL] MD5 para Hash de Senhas
+[CRITICAL] Hash de senha fraco (MD5 sem sal)
 File: models/user.py:29
-Description: As senhas dos usuários são armazenadas usando MD5
-             (hashlib.md5), algoritmo criptograficamente quebrado para
-             este fim.
-Impact:      MD5 é extremamente rápido e sem salt, permitindo que um
-             atacante que obtenha o banco de dados quebre as senhas em
-             segundos usando tabelas rainbow ou força bruta com GPU.
-             Todas as contas ficam comprometidas em caso de vazamento do BD.
-Recommendation: Substituir por bcrypt ou argon2 (biblioteca passlib ou
-                werkzeug.security). Adicionar salt automático por usuário.
+Description: set_password usa MD5 sem sal para guardar a senha.
+Impact:      MD5 é facilmente revertível por dicionário/rainbow tables; as senhas
+             ficam praticamente desprotegidas.
+Recommendation: Usar hash com sal (werkzeug generate_password_hash / bcrypt).
 
-[HIGH] Exposição do Hash de Senha na API
-File: models/user.py:22
-Description: O método to_dict() inclui o campo 'password' (hash MD5) na
-             resposta JSON retornada pela API para todos os endpoints de usuário.
-Impact:      Toda resposta de GET /users ou POST /users devolve o hash da
-             senha ao cliente. Isso facilita ataques offline de dicionário e
-             força bruta contra as senhas.
-Recommendation: Remover o campo 'password' do retorno de to_dict(). Se
-                necessário para uso interno, criar um método separado to_auth_dict().
+[CRITICAL] Hash de senha exposto nas respostas
+File: models/user.py:21
+Description: User.to_dict inclui o campo password, vazando o hash em GET
+             /users/<id>, /login e POST /users.
+Impact:      O hash de senha é entregue a qualquer cliente, facilitando ataques
+             offline para recuperar a senha.
+Recommendation: Remover password de toda serialização da entidade User.
 
-[HIGH] Token JWT Falso no Login
-File: routes/user_routes.py:210
-Description: O endpoint /login retorna um token no formato
-             'fake-jwt-token-{user_id}' sem qualquer assinatura criptográfica.
-Impact:      Qualquer cliente pode adivinhar ou forjar tokens para qualquer
-             usuário sabendo apenas o user_id. Não existe mecanismo real de
-             autenticação nem autorização por token.
-Recommendation: Implementar JWT real com PyJWT, assinado com a SECRET_KEY,
-                contendo claims de expiração (exp) e identidade (sub).
-
-[HIGH] Lógica de Negócio em Route Handler (task_routes)
-File: routes/task_routes.py:30
-Description: O handler get_tasks() executa cálculo de atraso (overdue),
-             busca individual de User e Category para cada task dentro de
-             um loop — tudo lógica de domínio dentro da camada de rota.
-Impact:      Acopla regras de negócio à camada HTTP, impossibilitando
-             reuso, testes unitários e manutenção independente. A lógica
-             se duplica em outros handlers sem ponto único de verdade.
-Recommendation: Mover cálculo de overdue para Task.is_overdue() (já existe,
-                apenas não é utilizado). Extrair montagem do payload para
-                Task.to_dict_full() ou um serviço TaskService.
-
-[HIGH] Lógica de Negócio em Route Handler (report_routes)
-File: routes/report_routes.py:54
-Description: O handler summary_report() calcula métricas de produtividade
-             por usuário com loops e contadores dentro da função de rota.
-Impact:      Regras de cálculo de produtividade ficam presas na camada
-             HTTP, impedindo reuso por outros endpoints ou serviços e
-             dificultando testes isolados.
-Recommendation: Extrair para um ReportService ou método estático no Model
-                User.get_productivity_stats().
-
-[MEDIUM] N+1 Queries em get_tasks
+[HIGH] Consultas N+1 na listagem de tasks e no relatório
 File: routes/task_routes.py:41
-Description: Para cada task retornada pelo query principal, o handler
-             executa User.query.get() e Category.query.get() separadamente
-             dentro do loop de iteração.
-Impact:      Para N tasks, são executadas 2N+1 queries no banco. Com volume
-             crescente de tasks, o tempo de resposta degrada linearmente,
-             sobrecarregando o banco de dados.
-Recommendation: Usar eager loading com joinedload ou subqueryload:
-                Task.query.options(joinedload(Task.user), joinedload(Task.category)).all()
+Description: GET /tasks faz uma query de User e outra de Category por task; o
+             relatório de resumo consulta tasks por usuário em laço
+             (report_routes.py:55).
+Impact:      O número de queries cresce com o volume de dados, degradando a
+             performance.
+Recommendation: Usar eager loading (joinedload) e/ou agregação em uma consulta.
 
-[MEDIUM] N+1 Queries em summary_report
-File: routes/report_routes.py:54
-Description: O loop sobre todos os usuários executa
-             Task.query.filter_by(user_id=u.id) para cada usuário
-             individualmente.
-Impact:      Para N usuários, são executadas N+1 queries. Em sistemas
-             com muitos usuários, o endpoint de relatório se torna
-             progressivamente mais lento.
-Recommendation: Usar agregação via GROUP BY com db.session.query ou
-                joinedload para carregar tasks junto com usuários.
-
-[MEDIUM] Lógica de Overdue Duplicada em 4 Locais
+[HIGH] Lógica de negócio duplicada e fora do model
 File: routes/task_routes.py:30
-Description: O cálculo de overdue (verificar se due_date < utcnow e status
-             não é done/cancelled) está repetido em task_routes.py (2x),
-             user_routes.py e report_routes.py, ignorando Task.is_overdue()
-             que já existe no Model.
-Impact:      Qualquer correção ou mudança na regra de negócio precisa ser
-             replicada em 4 lugares, criando risco de inconsistência entre
-             endpoints.
-Recommendation: Usar Task.is_overdue() em todos os locais. A implementação
-                correta já existe em models/task.py:50.
+Description: O cálculo de "overdue" é reescrito em várias rotas
+             (task_routes, user_routes, report_routes), enquanto o método
+             Task.is_overdue() existe e é ignorado.
+Impact:      Regra de negócio espalhada e duplicada diverge facilmente e dificulta
+             a manutenção.
+Recommendation: Centralizar a regra no model/serializer e reutilizar.
 
-[MEDIUM] Validação de Email Duplicada
-File: routes/user_routes.py:61
-Description: A expressão regular de validação de e-mail é copiada
-             literalmente em create_user() (linha 61) e update_user()
-             (linha 106), ignorando validate_email() de utils/helpers.py.
-Impact:      Mudanças na regra de validação precisam ser feitas em 2
-             lugares. Divergências silenciosas podem causar comportamento
-             inconsistente entre criação e atualização de usuários.
-Recommendation: Substituir as duas ocorrências por validate_email() de
-                utils/helpers.py.
+[HIGH] Debug habilitado de forma fixa
+File: app.py:34
+Description: app.run(debug=True) fixo no código.
+Impact:      O debugger interativo do Flask em produção expõe stack traces e
+             execução de código.
+Recommendation: Controlar debug por variável de ambiente, desligado por padrão.
 
-[LOW] Função process_task_data Nunca Utilizada
+[HIGH] Regras nas rotas sem usar a camada de serviço
+File: routes/task_routes.py:11
+Description: As rotas concentram validação, regra e serialização; a camada
+             services existe (NotificationService) mas nunca é instanciada/usada.
+Impact:      Controllers "gordos" impedem reuso e teste isolado da regra de
+             negócio.
+Recommendation: Mover a lógica para services e deixar as rotas finas.
+
+[MEDIUM] Cláusulas except genéricas engolindo erros
+File: routes/task_routes.py:62
+Description: Vários blocos usam `except:` sem capturar/logar a exceção.
+Impact:      Falhas silenciosas escondem a causa real e dificultam o diagnóstico.
+Recommendation: Capturar Exception, logar e responder de forma consistente.
+
+[MEDIUM] Serialização duplicada (dict manual em vez de to_dict)
+File: routes/task_routes.py:17
+Description: GET /tasks e GET /users/<id>/tasks remontam o dicionário da task à
+             mão em vez de usar Task.to_dict.
+Impact:      Duplicação de serialização propensa a divergir do model.
+Recommendation: Centralizar a serialização em funções/serializers reutilizáveis.
+
+[MEDIUM] Validação duplicada e utilitário não utilizado
 File: utils/helpers.py:57
-Description: A função process_task_data() (52 linhas) foi implementada
-             em utils/helpers.py mas nenhuma rota ou serviço a chama.
-Impact:      Código morto aumenta a carga cognitiva de quem mantém o
-             sistema, pois não está claro se a função é intencional ou
-             esquecida.
-Recommendation: Usar process_task_data() em task_routes.py substituindo
-                a validação inline, ou remover se não for mais necessária.
+Description: process_task_data (validação completa de task) existe em helpers mas
+             não é usada; as rotas reimplementam a validação.
+Impact:      Duas fontes de verdade para validação que tendem a divergir.
+Recommendation: Usar uma única função/serviço de validação.
 
-[LOW] Uso de type() em Vez de isinstance()
-File: routes/task_routes.py:141
-Description: A verificação de tipo é feita com type(tags) == list nas
-             linhas 141 e 210, em vez da forma idiomática isinstance(tags, list).
-Impact:      type() não reconhece subclasses, tornando o código frágil e
-             não-Pythônico. Leitores menos experientes podem confundir-se
-             sobre a intenção.
-Recommendation: Substituir por isinstance(tags, list).
+[MEDIUM] print() usado como logging
+File: routes/task_routes.py:149
+Description: Eventos e erros são registrados com print em várias rotas.
+Impact:      Logging não estruturado, sem níveis nem destino configurável.
+Recommendation: Usar o módulo logging.
 
-[LOW] Números Mágicos para Limites de Validação
-File: routes/task_routes.py:96
-Description: Limites como 3, 200 (título), 1, 5 (prioridade) e 4 (senha)
-             aparecem inline nos handlers, apesar de constantes equivalentes
-             estarem definidas em utils/helpers.py (MIN_TITLE_LENGTH,
-             MAX_TITLE_LENGTH, DEFAULT_PRIORITY, MIN_PASSWORD_LENGTH).
-Impact:      Mudança em um limite exige busca manual por todas as
-             ocorrências no código. Fácil de esquecer um local, causando
-             comportamento inconsistente.
-Recommendation: Importar e usar as constantes de utils/helpers.py em
-                todas as validações.
+[MEDIUM] Regex de email e constantes duplicadas
+File: routes/user_routes.py:61
+Description: A validação de email é feita por regex inline, duplicando
+             utils.validate_email; constantes VALID_* de helpers não são usadas.
+Impact:      Regras repetidas em pontos diferentes divergem com facilidade.
+Recommendation: Centralizar validação e constantes e reutilizar.
+
+[LOW] Imports não usados e código morto
+File: utils/helpers.py:3
+Description: helpers importa os/sys/json/math/hashlib sem uso e define funções
+             nunca chamadas (generate_id, sanitize_string, log_action, etc.).
+Impact:      Ruído que dificulta a leitura e a manutenção.
+Recommendation: Remover imports e funções não utilizados.
+
+[LOW] Números e strings mágicos repetidos
+File: routes/task_routes.py:110
+Description: Listas de status, faixa de prioridade (1-5) e roles aparecem
+             repetidas em várias rotas.
+Impact:      Valores mágicos espalhados dificultam evolução das regras.
+Recommendation: Centralizar em constantes nomeadas.
+
+[LOW] Métodos booleanos verbosos
+File: models/user.py:34
+Description: is_admin e Task.validate_status/validate_priority usam if/else para
+             retornar booleanos.
+Impact:      Verbosidade desnecessária.
+Recommendation: Retornar diretamente a expressão booleana.
+
+[LOW] Imports utilitários não utilizados no relatório
+File: routes/report_routes.py:7
+Description: format_date e calculate_percentage são importados mas nunca usados.
+Impact:      Código morto.
+Recommendation: Remover imports não utilizados.
 
 ================================
-Total: 14 findings
+Total: 17 findings
 ================================
-
-Phase 3 — Refactoring: COMPLETE
-Phase 4 — Validation:  COMPLETE (13/13 routes OK)
-
-Files changed:
-  app.py                              — SECRET_KEY carregado de config.py
-  config.py                           — NOVO: todas as configurações via env vars
-  .env.example                        — NOVO: template de variáveis de ambiente
-  requirements.txt                    — PyJWT>=2.10.1 adicionado
-  models/user.py                      — werkzeug password hash; password fora do to_dict()
-  routes/task_routes.py               — joinedload N+1; is_overdue(); isinstance; constantes
-  routes/user_routes.py               — JWT real; validate_email(); constantes
-  routes/report_routes.py             — delega para ReportService
-  services/notification_service.py    — credenciais SMTP via config.py
-  services/report_service.py          — NOVO: lógica de relatório extraída das rotas
-  utils/helpers.py                    — process_task_data morto removido
-
-audit/refactoring-log.md             — log completo de 14 mudanças
-audit/post-refactor-tests.txt        — resultados pós-refatoração
-================================
+Phase 2 complete. Proceed with refactoring (Phase 3)? [y/n]
 ```

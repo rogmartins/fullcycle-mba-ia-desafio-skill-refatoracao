@@ -177,7 +177,7 @@ Rules for the terminal output:
 After printing, write the same content to:
 
 ```
-../reports/audit-project-2.md
+../reports/audit-project-1.md
 ```
 
 Create the `reports/` directory if it does not exist:
@@ -194,7 +194,7 @@ fixed-width formatting is preserved.
 Wait for the user's response to `Proceed with refactoring (Phase 3)? [y/n]`:
 
 - **`y`**: confirm with `Starting Phase 3 — MVC Refactoring.` and continue.
-- **`n`**: confirm with `Audit saved to ../reports/audit-project-2.md. Refactoring cancelled.` and stop.
+- **`n`**: confirm with `Audit saved to ../reports/audit-project-1.md. Refactoring cancelled.` and stop.
 - Any other input: repeat the prompt once, then stop if still invalid.
 
 ---
