@@ -9,14 +9,16 @@ description: >
   wants a structured report of architectural issues, needs to refactor a
   project for separation of concerns (MVC, SOLID), or requests validation
   that the application keeps working after structural changes. The skill runs
-  a complete four-phase pipeline: (1) codebase scan classifying issues by
-  severity — CRITICAL, HIGH, MEDIUM, or LOW — with exact file and line; (2)
-  generation of a structured audit report with all findings; (3) guided
-  refactoring to MVC, eliminating the found issues; (4) post-refactoring
-  validation ensuring the application continues to work. Also trigger when
+  a complete three-phase pipeline: (1) Analysis — detect the stack (language,
+  framework, database), map the current architecture, and print a summary;
+  (2) Audit — cross the code against the anti-pattern catalog, classify each
+  finding by severity (CRITICAL, HIGH, MEDIUM, LOW) with exact file and line,
+  generate a structured report, and pause for confirmation; (3) Refactoring —
+  restructure the codebase to MVC eliminating the found issues, then validate
+  that the application still boots and its endpoints respond. Also trigger when
   the user mentions "God Class", tight coupling, business logic in
-  controllers, N+1 queries, hardcoded credentials, or any violation of
-  separation of concerns.
+  controllers, N+1 queries, hardcoded credentials, deprecated APIs, or any
+  violation of separation of concerns.
 
 slash_command: /refactor-arch
 
@@ -38,35 +40,72 @@ Runs a complete architectural audit and refactoring pipeline on a codebase
 targeting the MVC pattern, eliminating anti-patterns and code smells with
 severity classification and result validation.
 
+The pipeline has **three sequential phases**:
+
+1. **Analysis** — detect the stack, map the current architecture, print a summary.
+2. **Audit** — cross the code against the anti-pattern catalog, generate the
+   report, ask for confirmation.
+3. **Refactoring** — restructure to MVC, then validate that it works.
+
+The skill is **technology-agnostic**: never assume a stack — derive it from the
+project using `references/project-analysis.md`.
+
 ---
 
-## Preconditions
+## Phase 1 — Analysis
 
-Before starting the pipeline, verify:
+**Goal**: detect the stack (language, framework, database), map the current
+architecture, and print an analysis summary.
 
-1. **Map the project**: use `view` on the root directory to understand the folder
-   structure and identify the main language and framework.
-2. **Identify the entry point**: locate the main application file
-   (e.g. `app.py`, `index.php`, `application.rb`, `main.go`).
-3. **Load the severity scale**: read `references/severity-scale.md` now —
-   it is required throughout Phase 1 and Phase 2.
-4. **Record the current test state**: if a runner is configured, execute it and
-   save the result to `audit/baseline-tests.txt` before any changes.
+Load `references/project-analysis.md` now — it drives this entire phase.
+
+### 1.1 Stack detection
+
+Using the heuristics in `project-analysis.md`, detect:
+
+- **Language** (from manifests and dominant source extensions)
+- **Framework** (from the dependency manifest and the entry point's imports)
+- **Database and access layer** (ORM vs raw driver)
+
+### 1.2 Architecture mapping
+
+- Locate the **entry point** (`app.py`, `index.js`, `application.rb`, `main.go`,
+  `index.php`).
+- Build a **layer inventory**: classify what each source file currently does
+  (routing, business logic, data access, presentation, configuration), noting
+  files that mix several responsibilities.
+- List existing folders that imply layers, where credentials/config live, and
+  flag files longer than 200 lines (God Class candidates).
+
+### 1.3 Record the test baseline
+
+If a runner is configured, execute it and save the result to
+`audit/baseline-tests.txt` before any changes — this is the reference for
+Phase 3 validation.
 
 ```bash
 # Example: capture test baseline
 <test-runner> [options] > audit/baseline-tests.txt 2>&1
 ```
 
+### 1.4 Print the analysis summary
+
+Print the `ARCHITECTURE ANALYSIS` block defined in `project-analysis.md` to the
+terminal. The mixed-responsibility files listed there are the primary targets
+for Phase 2.
+
 ---
 
-## Phase 1 — Codebase Scan
+## Phase 2 — Audit
 
-**Goal**: identify all anti-patterns and code smells with exact location,
-classifying each finding using the severity scale defined in
-`references/severity-scale.md`.
+**Goal**: cross the code against the anti-pattern catalog, classify every finding
+by severity with exact location, consolidate into a structured report, print and
+save it, then **pause and ask for confirmation** before any modification.
 
-### 1.1 Systematic reading
+Load `references/anti-patterns.md` (catalog with detection signals) and
+`references/severity-scale.md` (severity classification) now.
+
+### 2.1 Systematic reading
 
 Traverse the project using `view` on each relevant file. Prioritise:
 
@@ -75,34 +114,23 @@ Traverse the project using `view` on each relevant file. Prioritise:
 - Files with direct database access
 - Configuration files with potentially exposed credentials
 
-### 1.2 Detection checklist by category
+### 2.2 Detection against the catalog
 
-**CRITICAL violations**
-- [ ] Hardcoded credentials or tokens (passwords, API keys, connection strings)
-- [ ] SQL queries built via string concatenation (SQL Injection)
-- [ ] A single file concentrating database, logic, and routing (full God Class)
+For each file, match against the anti-patterns in `anti-patterns.md` using their
+detection signals, and classify with the severity scale:
 
-**HIGH violations**
-- [ ] Complex business logic inside controllers or views
-- [ ] Complete absence of a Model layer (raw queries scattered across the codebase)
-- [ ] Tight coupling without dependency injection
-- [ ] Mutable global state shared across components
+**CRITICAL** — hardcoded credentials (AP-01); SQL injection via string building
+(AP-02); full God Class (AP-03).
+**HIGH** — business logic in controllers/views (AP-04); missing Model layer
+(AP-05); tight coupling without DI (AP-06); mutable global state (AP-07).
+**MEDIUM** — N+1 queries (AP-08); missing input validation (AP-09); deprecated /
+outdated API usage (AP-10).
+**LOW** — magic numbers/strings (AP-11); meaningless names (AP-12); dead code /
+outdated comments (AP-13).
 
-**MEDIUM violations**
-- [ ] N+1 queries (loops with a database call at each iteration)
-- [ ] Logic duplication across controllers or files in the same layer
-- [ ] Missing input validation on routes
-- [ ] Middlewares used for domain logic
+### 2.3 Recording findings
 
-**LOW violations**
-- [ ] Magic numbers or strings without named constants
-- [ ] Meaningless variable, function, or class names
-- [ ] Outdated comments or dead code (commented-out blocks)
-
-### 1.3 Recording findings
-
-For each finding, record it immediately in the format below before moving to
-the next file:
+For each finding, record it in the format below before moving to the next file:
 
 ```
 [SEVERITY] path/to/file.ext : line N
@@ -117,17 +145,10 @@ operation type (SELECT, INSERT, UPDATE, DELETE, or dynamic WHERE builder) and st
 only the risks enabled by that specific operation — do not generalise. If a technical
 security term is used, always define it in plain language in the same sentence.
 
----
+### 2.4 Audit report
 
-## Phase 2 — Audit Report
-
-**Goal**: consolidate all Phase 1 findings into a structured report, print it
-to the terminal in a standardised format, save it to disk, and ask the user
-whether to proceed to Phase 3.
-
-### 2.1 Terminal output format
-
-Print the full report to the terminal using this exact structure:
+Load `references/report-template.md` and render the report. Print the full report
+to the terminal using this exact structure:
 
 ```
 ================================
@@ -172,15 +193,11 @@ Rules for the terminal output:
   `Recommendation` fields in **Brazilian Portuguese**. All labels, headers,
   severity tags, file paths, and any other fields must remain in English.
 
-### 2.2 Save the report to disk
+### 2.5 Save the report to disk
 
-After printing, write the same content to:
-
-```
-../reports/audit-project-1.md
-```
-
-Create the `reports/` directory if it does not exist:
+After printing, write the same content to the path defined in
+`references/report-template.md` (`../reports/audit-project-<N>.md`, where `<N>`
+is the project number set in that template). Create the directory if needed:
 
 ```bash
 mkdir -p ../reports
@@ -189,23 +206,24 @@ mkdir -p ../reports
 Wrap the terminal block in a fenced code block inside the Markdown file so the
 fixed-width formatting is preserved.
 
-### 2.3 Proceed to Phase 3
+### 2.6 Confirmation checkpoint
 
-Wait for the user's response to `Proceed with refactoring (Phase 3)? [y/n]`:
+**Do not modify any file before this checkpoint is cleared.** Wait for the
+user's response to `Proceed with refactoring (Phase 3)? [y/n]`:
 
 - **`y`**: confirm with `Starting Phase 3 — MVC Refactoring.` and continue.
-- **`n`**: confirm with `Audit saved to ../reports/audit-project-1.md. Refactoring cancelled.` and stop.
+- **`n`**: confirm with `Audit saved. Refactoring cancelled.` and stop.
 - Any other input: repeat the prompt once, then stop if still invalid.
 
 ---
 
-## Phase 3 — MVC Refactoring
+## Phase 3 — Refactoring & Validation
 
-**Goal**: restructure the codebase to the MVC pattern, eliminating the
-identified issues in the priority order defined in the report.
+**Goal**: restructure the codebase to the MVC pattern in the priority order
+defined in the report, then validate that the application still works.
 
-Load `references/mvc-patterns.md` to consult patterns and examples specific
-to the framework identified in the preconditions.
+Load `references/mvc-patterns.md` (target MVC guidelines per framework) and
+`references/refactoring-playbook.md` (before/after transform per anti-pattern).
 
 ### 3.1 Execution order
 
@@ -220,9 +238,11 @@ Always follow this sequence to minimise regression risk:
 4. **Controller clean-up**: controllers should only orchestrate — receive the
    request, call the Model, return the response.
 5. **View isolation**: remove presentation logic mixed with business logic.
-6. **HIGH and MEDIUM**: eliminate coupling, fix N+1 queries, add missing
-   validations.
+6. **HIGH and MEDIUM**: eliminate coupling, fix N+1 queries, replace deprecated
+   APIs, add missing validations.
 7. **LOW last**: renaming, constant extraction, dead code removal.
+
+For each issue, apply the matching transform from `refactoring-playbook.md`.
 
 ### 3.2 Rules during refactoring
 
@@ -245,14 +265,7 @@ Maintain a log of changes in `audit/refactoring-log.md`:
 - Reason: brief description
 ```
 
----
-
-## Phase 4 — Validation
-
-**Goal**: ensure the application continues to work correctly after all changes
-made in Phase 3.
-
-### 4.1 Validation with automated tests
+### 3.4 Validation with automated tests
 
 If tests are configured, run the runner and compare with the baseline:
 
@@ -267,9 +280,10 @@ diff audit/baseline-tests.txt audit/post-refactor-tests.txt
 Any test that passed in the baseline and fails after refactoring is a
 regression — it must be fixed before closing.
 
-### 4.2 Validation without automated tests
+### 3.5 Validation without automated tests
 
-If no tests exist, perform a structural check:
+If no tests exist, perform a structural check that the application **boots and
+its endpoints respond**:
 
 - [ ] The application starts without errors (use the project's standard startup command)
 - [ ] Main routes respond with the expected HTTP status
@@ -277,19 +291,21 @@ If no tests exist, perform a structural check:
   path updates
 - [ ] No environment variable or credential was removed without a replacement
 
-### 4.3 Closing checklist
+### 3.6 Closing checklist
 
 - [ ] All CRITICAL and HIGH findings have been resolved
 - [ ] `audit/refactoring-log.md` is complete
-- [ ] `audit/architecture-report.md` updated with final status
-- [ ] Post-refactoring test results documented
+- [ ] Post-refactoring validation (tests and/or boot + endpoints) documented
 
 ---
 
 ## References
 
-| File                             | When to load                                          |
-|----------------------------------|-------------------------------------------------------|
-| `references/severity-scale.md`   | Start of Phase 1 — severity scale and examples        |
-| `references/report-template.md`  | Start of Phase 2 — audit report template              |
-| `references/mvc-patterns.md`     | Start of Phase 3 — MVC patterns by framework          |
+| File                              | When to load                                          |
+|-----------------------------------|-------------------------------------------------------|
+| `references/project-analysis.md`  | Start of Phase 1 — stack detection & architecture map |
+| `references/anti-patterns.md`     | Phase 2 — anti-pattern catalog with detection signals |
+| `references/severity-scale.md`    | Phase 2 — severity scale and examples                 |
+| `references/report-template.md`   | Phase 2 — audit report template                       |
+| `references/mvc-patterns.md`      | Phase 3 — target MVC patterns by framework            |
+| `references/refactoring-playbook.md` | Phase 3 — before/after transform per anti-pattern  |
