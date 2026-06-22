@@ -1,6 +1,6 @@
 from database import db
 from datetime import datetime
-from werkzeug.security import generate_password_hash, check_password_hash
+import hashlib
 
 class User(db.Model):
     __tablename__ = 'users'
@@ -14,23 +14,25 @@ class User(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     def to_dict(self):
-        # REFACTORED: [CRITICAL] password removido da serialização (antes vazava o hash).
         return {
             'id': self.id,
             'name': self.name,
             'email': self.email,
+            'password': self.password,
             'role': self.role,
             'active': self.active,
             'created_at': str(self.created_at)
         }
 
     def set_password(self, pwd):
-        # REFACTORED: [CRITICAL] Hash com sal (antes MD5 sem sal).
-        self.password = generate_password_hash(pwd)
+
+        self.password = hashlib.md5(pwd.encode()).hexdigest()
 
     def check_password(self, pwd):
-        return check_password_hash(self.password, pwd)
+        return self.password == hashlib.md5(pwd.encode()).hexdigest()
 
     def is_admin(self):
-        # REFACTORED: [LOW] Retorno booleano direto.
-        return self.role == 'admin'
+        if self.role == 'admin':
+            return True
+        else:
+            return False
